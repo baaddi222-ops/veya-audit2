@@ -1,0 +1,17 @@
+# Compliance requirements (owner-stated rules)
+> **Update 0.5.3:** all four rules are implemented in code (see `docs/COMPLIANCE_PLAN.md` "Implementation status" and ADR-0026). Django-layer code is written but NOT executed here.
+> The full plan is now in `docs/COMPLIANCE_PLAN.md` (planning only, awaiting owner approval). This file keeps the original four rules.
+
+Stated by the product owner, 2026-10-27. **Status: recorded, NOT implemented in this release** (0.5.2 is an audit-tooling release; the age gate
+changes registration/authentication, which the audit brief forbids changing without proven reason and tests). This is engineering guidance,
+**not legal advice** — have counsel confirm the thresholds and wording for the jurisdictions you launch in (e.g. GDPR/ePrivacy for the EU,
+COPPA for the US, Law 09-08 / CNDP for Morocco, CAN-SPAM for e-mail).
+
+| # | Rule | State of the code today | What to build (own release, with tests) |
+|---|---|---|---|
+| 1 | **Ask the user's age at signup** | **Not implemented.** Registration takes only e-mail + password. | Required date of birth (or birth year + confirmation) in `RegisterSerializer` and the signup screen; reject below the minimum age you choose (typically 13 US / 13–16 EU member-state specific; parental-consent rules for minors in some countries); store the minimum needed (e.g. birth date server-side, never exposed in any public serializer); cannot be edited freely afterwards; add to the privacy policy. Tests: under-age rejected, boundary day, missing/future/absurd dates, not leaked in any API response. |
+| 2 | **Fonts served from your own server** | **Compliant today (STATICALLY VERIFIED).** The app uses system fonts; no third-party font/CDN host exists in app source, and `tools/audit/scan_repo.py` now **fails the audit** if `fonts.googleapis.com`, `fonts.gstatic.com`, Typekit, jsDelivr/unpkg/cdnjs, analytics or session-recording hosts appear (selftest-proven). | If custom fonts are added: bundle the font files in the app (`assets/fonts`, loaded with `expo-font`) or serve them from your own domain — never from Google Fonts/CDNs. Django admin uses no external fonts. |
+| 3 | **Session logging** | **Not implemented** (only the JWT blacklist tables exist). *Interpretation needed:* I read this as an **authentication/security log** (who logged in / out / refreshed / failed, when, from which device). It is **not** third-party session *recording* (Hotjar/FullStory style) — those hosts are blocked by the scan. | `AuthEvent` table (user, event, timestamp, truncated/hashed IP, user-agent, success), written by login/logout/refresh views; retention limit + purge command; included in the privacy notice; users can see/revoke active sessions. Please confirm which meaning you need. |
+| 4 | **Unsubscribe link** | **Not applicable yet:** the system sends **no e-mail** (no e-mail backend, no newsletters, no notification e-mails). | Before sending any marketing/notification e-mail: a one-click unsubscribe link (no login required) in the body **and** `List-Unsubscribe` + `List-Unsubscribe-Post` headers, honoured immediately, per-category preferences, separate transactional vs marketing, sender identity/postal address, consent record. Tests for token validity, idempotence, and that unsubscribing cannot affect another user. |
+
+Suggested order after the audit passes (`READY FOR 0.6`): #1 age gate → #3 auth-event log → #4 when the first e-mail is introduced. #2 stays enforced by the audit.
